@@ -1,0 +1,12 @@
+streamlit
+PyPDF2
+python-dotenv
+requests
+beautifulsoup4
+faiss-cpu
+sentence-transformers
+langchain
+huggingface_hub
+transformers
+langchain-community
+
