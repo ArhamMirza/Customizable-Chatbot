@@ -6,3 +6,6 @@ beautifulsoup4
 faiss-cpu
 sentence-transformers
 langchain
+huggingface_hub
+transformers
+
