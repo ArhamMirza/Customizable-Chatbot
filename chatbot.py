@@ -24,11 +24,6 @@ def apply_changes():
     st.success("Changes Applied! Refresh the page if needed.")
 
 
-
-
-import json
-import re
-
 def analyze_content(llm):
     retriever = st.session_state.vectorstore.as_retriever()
     
@@ -254,7 +249,7 @@ def main():
             st.session_state.chatbot_config.update(extracted_fields)
             st.session_state.last_uploaded_file = uploaded_file.name  # Track uploaded file
             st.sidebar.success("Chatbot fields autofilled! Review before applying.")
-            st.experimental_rerun()
+            st.rerun()
 
         else:
             st.sidebar.warning("Could not extract meaningful details.")
@@ -267,7 +262,7 @@ def main():
         if extracted_fields:
             st.session_state.chatbot_config.update(extracted_fields)
             st.sidebar.success("Chatbot fields autofilled! Review before applying.")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.sidebar.warning("Could not extract meaningful details.")
 
