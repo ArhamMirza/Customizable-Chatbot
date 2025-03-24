@@ -99,7 +99,7 @@ class ChatbotManager:
             return False
         
         try:
-            self.retriever = self.vectorstore.as_retriever(search_type="similarity_score_threshold",search_kwargs={"score_threshold": 0.5,"k": 5})
+            self.retriever = self.vectorstore.as_retriever(search_type="similarity_score_threshold",search_kwargs={"score_threshold": 0.8,"k": 5})
             
             system_prompt = (
                 "Refer to the documents to answer the question when needed. "
@@ -162,7 +162,7 @@ class ChatbotManager:
             documents = loader.load()
             logger.info(f"Document length: {len(documents[0].page_content)} characters")
   
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=50)
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=4)
             
             docs = text_splitter.split_documents(documents)
 
