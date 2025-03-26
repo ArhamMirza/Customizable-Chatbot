@@ -99,7 +99,7 @@ class ChatbotManager:
             return False
         
         try:
-            self.retriever = self.vectorstore.as_retriever(search_type="similarity_score_threshold",search_kwargs={"score_threshold": 0.8,"k": 5})
+            self.retriever = self.vectorstore.as_retriever(search_type="similarity_score_threshold",search_kwargs={"score_threshold": 0.8,"k": 3})
             
             system_prompt = (
                 "Refer to the documents to answer the question when needed. "
