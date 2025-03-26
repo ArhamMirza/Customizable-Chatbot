@@ -9,5 +9,6 @@ streamlit==1.37.0
 tiktoken==0.9.0
 transformers==4.48.0
 urllib3==1.26.19
+langchain_community
 
 bleach==6.2.0
