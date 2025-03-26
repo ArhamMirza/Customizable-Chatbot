@@ -72,91 +72,68 @@ def process_uploaded_file(file, chatbot_manager: ChatbotManager) -> Optional[Dic
 
 
 class WebPageSecurityManager:
-    # Comprehensive list of safe, reputable domains
-    SAFE_DOMAINS = [
-        # Academic and Educational
-        'wikipedia.org', 'scholar.google.com', 'academia.edu', 'researchgate.net', 
-        'mit.edu', 'harvard.edu', 'stanford.edu', 'berkeley.edu', 'yale.edu', 
-        'ox.ac.uk', 'cam.ac.uk', 'imperial.ac.uk', 'ethz.ch', 'caltech.edu',
-        
-        # News and Media (Established, Reputable Sources)
-        'bbc.com', 'bbc.co.uk', 'npr.org', 'reuters.com', 'apnews.com', 
-        'economist.com', 'nationalgeographic.com', 'scientificamerican.com', 
-        'nature.com', 'science.org', 'pbs.org', 'newsweek.com', 'time.com',
-        
-        # Scientific and Research Organizations
-        'nasa.gov', 'nih.gov', 'cdc.gov', 'noaa.gov', 'who.int', 'un.org', 
-        'world-exchanges.org', 'ipcc.ch', 'iaea.org', 'oecd.org',
-        
-        # Technology and Open Source
-        'github.com', 'gitlab.com', 'stackoverflow.com', 'arxiv.org', 
-        'w3.org', 'mozilla.org', 'apache.org', 'linux.org', 'python.org', 
-        'jupyter.org', 'kde.org', 'gnome.org',
-        
-        # Government and Public Services
-        'usa.gov', 'data.gov', 'census.gov', 'loc.gov', 'gao.gov', 
-        'uk.gov', 'europa.eu', 'un.org',
-        
-        # Non-Profit and International Organizations
-        'unicef.org', 'redcross.org', 'amnesty.org', 'greenpeace.org', 
-        'worldbank.org', 'imf.org', 'unesco.org', 'who.int',
-        
-        # Health and Medical Resources
-        'mayoclinic.org', 'cdc.gov', 'nih.gov', 'medlineplus.gov', 
-        'health.harvard.edu', 'who.int', 'cancer.org',
-        
-        # Professional and Scholarly Associations
-        'acm.org', 'ieee.org', 'apa.org', 'asa.org', 'mathematicalmindsets.com'
+    PRIVATE_IP_RANGES = [
+        re.compile(r"^127\..*"),      # Loopback
+        re.compile(r"^10\..*"),       # Private A
+        re.compile(r"^192\.168\..*"), # Private C
+        re.compile(r"^172\.(1[6-9]|2[0-9]|3[0-1])\..*"),  # Private B
+        re.compile(r"^169\.254\..*"), # Link-local
+        re.compile(r"^::1$"),         # IPv6 loopback
+        re.compile(r"^fc00::/7$"),    # IPv6 private
+        re.compile(r"^fe80::/10$")    # IPv6 link-local
     ]
 
     @staticmethod
     def is_safe_url(url: str, strict: bool = True) -> bool:
         """
-        Advanced URL safety validation
-        
+        Secure URL validation to prevent SSRF, XSS, and other attacks.
+
         Args:
-            url (str): URL to validate
-            strict (bool): Whether to apply strict domain validation
-        
+            url (str): The URL to validate.
+            strict (bool): If True, enforces strict domain checks.
+
         Returns:
-            bool: Whether the URL is considered safe
+            bool: True if the URL is safe, False otherwise.
         """
         try:
-            # Parse the URL
             parsed_url = urlparse(url)
-            
-            # Check for valid schemes
-            if parsed_url.scheme not in ['http', 'https']:
-                logging.warning(f"Invalid URL scheme: {parsed_url.scheme}")
+
+            # Ensure only HTTP and HTTPS are allowed
+            if parsed_url.scheme not in ["http", "https"]:
+                logging.warning(f"Blocked due to invalid scheme: {parsed_url.scheme}")
                 return False
-            
-            # Reject URLs with unusual characters
-            if re.search(r'[<>"\'\x00-\x1F\x7F]', url):
-                logging.warning("URL contains suspicious characters")
+
+            # Reject suspicious characters in the URL
+            if re.search(r"[<>'\"\x00-\x1F\x7F]", url):
+                logging.warning(f"Blocked due to unsafe characters in URL: {url}")
                 return False
-            
-            # IP address check (optional, can be disabled)
+
+            # Decode percent-encoded characters
+            decoded_netloc = unquote(parsed_url.netloc)
+
+            # Ensure domain is properly formatted
+            if not re.match(r"^[a-zA-Z0-9.-]+$", decoded_netloc):
+                logging.warning(f"Blocked due to malformed domain: {decoded_netloc}")
+                return False
+
+            # Prevent direct IP address usage
+            if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", decoded_netloc):
+                logging.warning(f"Blocked direct IP address access: {decoded_netloc}")
+                return False
+
+            # Prevent private/local network access
             try:
-                ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
-                if ip_pattern.match(parsed_url.netloc):
-                    logging.warning("Direct IP URLs are not allowed")
-                    return False
-            except Exception as ip_check_error:
-                logging.error(f"IP check error: {ip_check_error}")
+                resolved_ip = socket.gethostbyname(decoded_netloc)
+                for pattern in WebPageSecurityManager.PRIVATE_IP_RANGES:
+                    if pattern.match(resolved_ip):
+                        logging.warning(f"Blocked private network access: {resolved_ip}")
+                        return False
+            except socket.gaierror:
+                logging.error(f"DNS resolution failed for: {decoded_netloc}")
                 return False
-            
-            # Domain validation
-            # if strict:
-            #     domain_match = any(
-            #         safe_domain in parsed_url.netloc.lower() 
-            #         for safe_domain in WebPageSecurityManager.SAFE_DOMAINS
-            #     )
-            #     if not domain_match:
-            #         logging.warning(f"Domain not in safe list: {parsed_url.netloc}")
-            #         return False
-            
+
             return True
-        
+
         except Exception as e:
             logging.error(f"URL validation error: {str(e)}")
             return False
@@ -164,37 +141,45 @@ class WebPageSecurityManager:
     @staticmethod
     def sanitize_text(text: str, max_length: int = 500000) -> str:
         """
-        Advanced text sanitization
-        
+        Securely sanitize text to prevent XSS and script injections.
+
         Args:
-            text (str): Input text to sanitize
-            max_length (int): Maximum allowed text length
-        
+            text (str): Input text.
+            max_length (int): Max allowed text length.
+
         Returns:
-            str: Sanitized text
+            str: Sanitized text.
         """
-        # Remove control characters and potentially dangerous content
-        sanitized_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
-        
-        # Remove potential XSS and script injection attempts
-        sanitized_text = re.sub(r'<script.*?>.*?</script>', '', sanitized_text, flags=re.DOTALL | re.IGNORECASE)
-        sanitized_text = re.sub(r'javascript:', '', sanitized_text, flags=re.IGNORECASE)
-        
-        # Limit text length
+        # Remove control characters
+        sanitized_text = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", text)
+
+        # Remove dangerous HTML tags
+        sanitized_text = re.sub(
+            r"<(script|iframe|object|embed|link|style).*?>.*?</\1>", 
+            "", sanitized_text, flags=re.DOTALL | re.IGNORECASE
+        )
+
+        # Block JavaScript execution attempts
+        sanitized_text = re.sub(r"javascript\s*:", "", sanitized_text, flags=re.IGNORECASE)
+
+        # Block inline event handlers (e.g., `onerror=`, `onclick=`)
+        sanitized_text = re.sub(r"on\w+\s*=", "", sanitized_text, flags=re.IGNORECASE)
+
+        # Trim length to avoid DoS attacks
         return sanitized_text[:max_length]
 
     @staticmethod
     def content_hash(content: str) -> str:
         """
-        Generate a hash to detect duplicate or suspicious content
-        
+        Generate a SHA-256 hash of content to detect duplicate/malicious content.
+
         Args:
-            content (str): Content to hash
-        
+            content (str): Content to hash.
+
         Returns:
-            str: SHA-256 hash of the content
+            str: Hex-encoded SHA-256 hash.
         """
-        return hashlib.sha256(content.encode('utf-8')).hexdigest()
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 def fetch_webpage_content(
     url: str, 
