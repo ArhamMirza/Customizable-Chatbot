@@ -8,6 +8,7 @@ from .manager import ChatbotManager
 import urllib3
 from urllib.parse import urlparse
 import re
+import bleach
 import os
 import hashlib
 import time
@@ -177,7 +178,7 @@ class WebPageSecurityManager:
         sanitized_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
         
         # Remove potential XSS and script injection attempts
-        sanitized_text = re.sub(r'<script.*?>.*?</script>', '', sanitized_text, flags=re.DOTALL | re.IGNORECASE)
+        sanitized_text = bleach.clean(sanitized_text, tags=[], attributes={}, protocols=[], strip=True)
         sanitized_text = re.sub(r'javascript:', '', sanitized_text, flags=re.IGNORECASE)
         
         # Limit text length
